@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.firebase/
+firebase-debug.log
+*-debug.log
+functions/.env*
+functions/node_modules/
+.firestore-rules-analysis.md

@@ -1,0 +1,13 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "searches",
+      "queryScope": "COLLECTION",
+      "density": "DENSE",
+      "fields": [
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

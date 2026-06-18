@@ -1,0 +1,105 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    // config/app (backend only)
+    //   defaultCredits: int, optional, 0..10000
+    // users/{uid} (private PII and quota)
+    //   uid: string, immutable
+    //   email: string, <=254
+    //   displayName: string, <=80
+    //   photoURL: string, <=500
+    //   provider: "google.com" | "password"
+    //   creditsRemaining/creditsTotal: int, 0..10000
+    //   createdAt/lastSignedInAt: timestamp
+    //   lastSearchAt: optional timestamp
+    // users/{uid}/searches/{requestId} (private search history)
+    //   fingerprint/query/city/textQuery: bounded strings
+    //   district: string or null
+    //   allCity: bool; cost: int; status: enum; createdAt: timestamp
+    //   completed result fields are written only by Admin SDK.
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function validBoundedString(value, maxLength) {
+      return value is string && value.size() <= maxLength;
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll([
+          'uid', 'email', 'displayName', 'photoURL', 'provider',
+          'creditsRemaining', 'creditsTotal', 'createdAt', 'lastSignedInAt'
+        ]) &&
+        data.keys().hasOnly([
+          'uid', 'email', 'displayName', 'photoURL', 'provider',
+          'creditsRemaining', 'creditsTotal', 'createdAt', 'lastSignedInAt', 'lastSearchAt'
+        ]) &&
+        validBoundedString(data.uid, 128) &&
+        validBoundedString(data.email, 254) &&
+        validBoundedString(data.displayName, 80) &&
+        validBoundedString(data.photoURL, 500) &&
+        data.provider in ['google.com', 'password'] &&
+        data.creditsRemaining is int && data.creditsRemaining >= 0 && data.creditsRemaining <= 10000 &&
+        data.creditsTotal is int && data.creditsTotal >= 0 && data.creditsTotal <= 10000 &&
+        data.createdAt is timestamp &&
+        data.lastSignedInAt is timestamp &&
+        (!('lastSearchAt' in data) || data.lastSearchAt is timestamp);
+    }
+
+    function isValidSearch(data) {
+      return data.keys().hasAll([
+          'fingerprint', 'query', 'city', 'district', 'allCity',
+          'cost', 'status', 'createdAt', 'textQuery'
+        ]) &&
+        validBoundedString(data.fingerprint, 500) &&
+        validBoundedString(data.query, 80) && data.query.size() >= 2 &&
+        validBoundedString(data.city, 40) &&
+        (data.district == null || validBoundedString(data.district, 50)) &&
+        data.allCity is bool &&
+        data.cost is int && data.cost >= 1 && data.cost <= 5 &&
+        data.status in ['pending', 'completed', 'failed'] &&
+        data.createdAt is timestamp &&
+        validBoundedString(data.textQuery, 180) &&
+        (!('results' in data) || (data.results is list && data.results.size() <= 20)) &&
+        (!('totalFound' in data) || (data.totalFound is int && data.totalFound >= 0 && data.totalFound <= 20)) &&
+        (!('filteredOut' in data) || (data.filteredOut is int && data.filteredOut >= 0 && data.filteredOut <= 20)) &&
+        (!('completedAt' in data) || data.completedAt is timestamp) &&
+        (!('refunded' in data) || data.refunded is bool) &&
+        (!('error' in data) || validBoundedString(data.error, 300));
+    }
+
+    match /config/{documentId} {
+      allow read, write: if false;
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+
+      // Browser writes are intentionally impossible. Validators remain explicit
+      // so any future policy change cannot accidentally omit schema validation.
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && false;
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && false;
+      allow delete: if false;
+
+      match /searches/{requestId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidSearch(request.resource.data) && false;
+        allow update: if isOwner(userId) && isValidSearch(request.resource.data) && false;
+        allow delete: if false;
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

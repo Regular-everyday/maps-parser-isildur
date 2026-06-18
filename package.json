@@ -1,0 +1,24 @@
+{
+  "name": "maps-parser-isildur",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "sync:locations": "node scripts/sync-locations.mjs",
+    "test": "node --test functions/test/*.test.js",
+    "lint": "eslint src functions/index.js functions/lib functions/test scripts"
+  },
+  "dependencies": {
+    "firebase": "^12.1.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.33.0",
+    "eslint": "^9.33.0",
+    "globals": "^16.3.0",
+    "vite": "^7.1.3"
+  }
+}

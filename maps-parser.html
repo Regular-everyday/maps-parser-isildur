@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maps Parser</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0e10;
+    --surface: #18181c;
+    --surface2: #222228;
+    --border: #2e2e38;
+    --accent: #7c6af7;
+    --accent2: #a78bfa;
+    --text: #e8e8f0;
+    --muted: #7070888;
+    --muted2: #555566;
+    --green: #4ade80;
+    --yellow: #fbbf24;
+    --red: #f87171;
+    --radius: 10px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    padding: 24px 16px 60px;
+  }
+
+  header {
+    max-width: 680px;
+    margin: 0 auto 32px;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+
+  header h1 {
+    font-family: 'DM Mono', monospace;
+    font-size: 1.15rem;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    color: var(--accent2);
+  }
+
+  header span {
+    font-size: 0.75rem;
+    color: #555566;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    max-width: 680px;
+    margin: 0 auto 16px;
+  }
+
+  /* Drop zone */
+  .drop-zone {
+    border: 1.5px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 36px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+
+  .drop-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(124, 106, 247, 0.06);
+  }
+
+  .drop-zone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+
+  .drop-icon {
+    font-size: 2rem;
+    margin-bottom: 10px;
+    display: block;
+  }
+
+  .drop-zone p {
+    color: #666677;
+    font-size: 0.875rem;
+  }
+
+  .drop-zone p strong {
+    color: var(--accent2);
+    font-weight: 500;
+  }
+
+  .file-chosen {
+    margin-top: 10px;
+    font-size: 0.8rem;
+    color: var(--green);
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* Parse button */
+  .btn-parse {
+    width: 100%;
+    max-width: 680px;
+    margin: 0 auto 24px;
+    display: block;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    padding: 13px;
+    font-size: 0.9rem;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    letter-spacing: 0.02em;
+  }
+
+  .btn-parse:hover { background: #6b5ce7; }
+  .btn-parse:active { transform: scale(0.99); }
+  .btn-parse:disabled { background: #333; color: #555; cursor: default; }
+
+  /* Stats bar */
+  .stats-bar {
+    max-width: 680px;
+    margin: 0 auto 16px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .stat-chip {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    font-family: 'DM Mono', monospace;
+    color: #888899;
+  }
+
+  .stat-chip b { color: var(--accent2); }
+
+  /* Toolbar */
+  .toolbar {
+    max-width: 680px;
+    margin: 0 auto 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .sort-label {
+    font-size: 0.78rem;
+    color: #666677;
+    font-family: 'DM Mono', monospace;
+    white-space: nowrap;
+  }
+
+  /* Toggle */
+  .toggle-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .toggle {
+    width: 44px;
+    height: 24px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    cursor: pointer;
+    position: relative;
+    transition: background 0.2s;
+  }
+
+  .toggle.on {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .toggle::after {
+    content: '';
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    top: 2px;
+    left: 2px;
+    transition: transform 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+  }
+
+  .toggle.on::after { transform: translateX(20px); }
+
+  .toggle-text {
+    font-size: 0.78rem;
+    font-family: 'DM Mono', monospace;
+    color: #666677;
+    transition: color 0.2s;
+  }
+
+  .toggle.on + .toggle-text { color: var(--accent2); }
+
+  /* Download button */
+  .btn-dl {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: #888899;
+    border-radius: 7px;
+    padding: 7px 14px;
+    font-size: 0.78rem;
+    font-family: 'DM Mono', monospace;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+    white-space: nowrap;
+  }
+
+  .btn-dl:hover {
+    border-color: var(--accent2);
+    color: var(--accent2);
+  }
+
+  /* Result count */
+  .result-count {
+    font-size: 0.75rem;
+    font-family: 'DM Mono', monospace;
+    color: #555566;
+    max-width: 680px;
+    margin: 0 auto 12px;
+    padding: 0 2px;
+  }
+
+  /* Cards list */
+  .list {
+    max-width: 680px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .biz-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    transition: border-color 0.15s;
+    animation: fadeUp 0.25s ease both;
+  }
+
+  .biz-card:hover { border-color: #3e3e50; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .biz-rank {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--muted2);
+    min-width: 20px;
+    text-align: right;
+  }
+
+  .biz-main {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .biz-name {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .biz-actions {
+    display: flex;
+    gap: 6px;
+  }
+
+  .btn-sm {
+    font-size: 0.72rem;
+    font-family: 'DM Mono', monospace;
+    padding: 4px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: #888899;
+    transition: all 0.15s;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .btn-sm:hover {
+    border-color: var(--accent2);
+    color: var(--accent2);
+  }
+
+  .btn-sm.maps {
+    border-color: #2a6041;
+    color: #4ade80;
+    background: rgba(74,222,128,0.04);
+  }
+
+  .btn-sm.maps:hover {
+    background: rgba(74,222,128,0.1);
+  }
+
+  .biz-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .rating {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.9rem;
+    font-weight: 500;
+  }
+
+  .rating.high   { color: var(--green); }
+  .rating.mid    { color: var(--yellow); }
+  .rating.low    { color: var(--red); }
+
+  .reviews {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    color: #555566;
+  }
+
+  /* Empty / error */
+  .empty {
+    max-width: 680px;
+    margin: 40px auto;
+    text-align: center;
+    color: #444455;
+    font-size: 0.85rem;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .error-msg {
+    max-width: 680px;
+    margin: 0 auto 16px;
+    background: rgba(248,113,113,0.08);
+    border: 1px solid rgba(248,113,113,0.25);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    font-size: 0.82rem;
+    color: var(--red);
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #2e2e38; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>maps-parser</h1>
+  <span>v1.0 · Google Maps HTML → liste</span>
+</header>
+
+<div class="card">
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fileInput" accept=".html,.htm">
+    <span class="drop-icon">⌗</span>
+    <p>Google Maps sayfasını <strong>buraya sürükle</strong> veya tıkla</p>
+    <p style="margin-top:6px; font-size:0.75rem;">Haritalar sayfasını Dosya → Farklı Kaydet ile HTML olarak kaydet</p>
+    <div class="file-chosen" id="fileChosen"></div>
+  </div>
+</div>
+
+<button class="btn-parse" id="btnParse" disabled>Dosya seçilmedi</button>
+
+<div id="errorMsg" class="error-msg" style="display:none;"></div>
+
+<div id="statsBar" class="stats-bar" style="display:none;">
+  <div class="stat-chip">toplam: <b id="statTotal">0</b></div>
+  <div class="stat-chip">filtrelenen: <b id="statFiltered">0</b></div>
+  <div class="stat-chip">ort. puan: <b id="statAvg">0</b></div>
+  <div class="stat-chip">ort. yorum: <b id="statAvgRev">0</b></div>
+</div>
+
+<div id="toolbar" class="toolbar" style="display:none;">
+  <div class="toolbar-left">
+    <span class="sort-label">sıralama:</span>
+    <div class="toggle-wrap">
+      <div class="toggle" id="sortToggle" onclick="toggleSort()"></div>
+      <span class="toggle-text" id="sortLabel">puana göre</span>
+    </div>
+  </div>
+  <button class="btn-dl" onclick="downloadExcel()">↓ excel indir</button>
+</div>
+
+<div id="resultCount" class="result-count" style="display:none;"></div>
+<div id="list" class="list"></div>
+<div id="empty" class="empty" style="display:none;">Eşleşen işletme bulunamadı.</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+  let allBusinesses = [];
+  let smartSort = false;
+  let currentFile = null;
+
+  const dropZone = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+  const btnParse = document.getElementById('btnParse');
+
+  // Drag & drop
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const f = e.dataTransfer.files[0];
+    if (f) handleFile(f);
+  });
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) handleFile(fileInput.files[0]);
+  });
+
+  function handleFile(f) {
+    currentFile = f;
+    document.getElementById('fileChosen').textContent = '✓ ' + f.name;
+    btnParse.disabled = false;
+    btnParse.textContent = 'Listeyi Oluştur →';
+  }
+
+  btnParse.addEventListener('click', () => {
+    if (!currentFile) return;
+    const reader = new FileReader();
+    reader.onload = e => parseHTML(e.target.result);
+    reader.readAsText(currentFile, 'utf-8');
+  });
+
+  function parseHTML(html) {
+    hideError();
+    const MIN_RATING = 3.9;
+    const MIN_REVIEWS = 100;
+
+    // Extract aria-labels
+    const ariaRe = /aria-label="([^"]+)"/g;
+    const labels = [];
+    let m;
+    while ((m = ariaRe.exec(html)) !== null) labels.push(m[1]);
+
+    // Extract links
+    const linkRe = /href="(https:\/\/www\.google\.com\/maps\/place\/[^"]+)"/g;
+    const linkMap = {};
+    while ((m = linkRe.exec(html)) !== null) {
+      const urlMatch = m[1].match(/maps\/place\/([^/]+)/);
+      if (urlMatch) {
+        const name = decodeURIComponent(urlMatch[1]).replace(/\+/g, ' ');
+        linkMap[name] = m[1];
+      }
+    }
+
+    // Parse businesses from aria-labels
+    const businesses = [];
+    const seen = new Set();
+
+    for (let i = 0; i < labels.length; i++) {
+      const label = labels[i];
+      const ratingMatch = label.match(/(\d+[.,]\d+)\s+yıldızlı\s+([\d.]+)\s+Yorum/);
+      if (!ratingMatch) continue;
+
+      const rating = parseFloat(ratingMatch[1].replace(',', '.'));
+      const reviews = parseInt(ratingMatch[2].replace(/\./g, ''), 10);
+
+      let name = null;
+      for (let j = i - 1; j >= Math.max(i - 5, 0); j--) {
+        const prev = labels[j];
+        if (!prev.includes('yıldızlı') && !prev.includes('Google Haritalar') &&
+            !prev.includes('yasal') && prev.length > 3) {
+          name = prev.replace(/·Ziyaret edilmiş bağlantı/g, '').trim();
+          // Decode HTML entities
+          name = name.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+          break;
+        }
+      }
+
+      if (!name || seen.has(name)) continue;
+      seen.add(name);
+
+      // Find link
+      let url = linkMap[name];
+      if (!url) {
+        const nameLower = name.toLowerCase();
+        for (const [k, v] of Object.entries(linkMap)) {
+          if (k.toLowerCase() === nameLower || k.toLowerCase().startsWith(nameLower.substring(0, 20))) {
+            url = v;
+            break;
+          }
+        }
+      }
+
+      businesses.push({ name, rating, reviews, url: url || null });
+    }
+
+    if (businesses.length === 0) {
+      showError('İşletme bulunamadı. Lütfen Google Maps sayfasını "Dosya → Farklı Kaydet" ile kaydettiğinizden emin olun.');
+      return;
+    }
+
+    // Store all, filter by threshold
+    allBusinesses = businesses.filter(b => b.rating >= MIN_RATING && b.reviews >= MIN_REVIEWS);
+
+    const filtered = businesses.length - allBusinesses.length;
+
+    // Stats
+    document.getElementById('statTotal').textContent = businesses.length;
+    document.getElementById('statFiltered').textContent = filtered;
+    const avgRating = (allBusinesses.reduce((a, b) => a + b.rating, 0) / allBusinesses.length).toFixed(1);
+    const avgRevs = Math.round(allBusinesses.reduce((a, b) => a + b.reviews, 0) / allBusinesses.length);
+    document.getElementById('statAvg').textContent = avgRating;
+    document.getElementById('statAvgRev').textContent = avgRevs.toLocaleString('tr-TR');
+
+    document.getElementById('statsBar').style.display = 'flex';
+    document.getElementById('toolbar').style.display = 'flex';
+    document.getElementById('resultCount').style.display = 'block';
+
+    renderList();
+  }
+
+  function getSorted() {
+    const copy = [...allBusinesses];
+    if (smartSort) {
+      copy.sort((a, b) => (b.reviews * b.rating) - (a.reviews * a.rating));
+    } else {
+      copy.sort((a, b) => b.rating - a.rating || b.reviews - a.reviews);
+    }
+    return copy;
+  }
+
+  function renderList() {
+    const sorted = getSorted();
+    const list = document.getElementById('list');
+    const empty = document.getElementById('empty');
+    const countEl = document.getElementById('resultCount');
+
+    if (sorted.length === 0) {
+      list.innerHTML = '';
+      empty.style.display = 'block';
+      countEl.textContent = '';
+      return;
+    }
+
+    empty.style.display = 'none';
+    countEl.textContent = sorted.length + ' işletme · min 3.9★ · min 100 yorum';
+
+    list.innerHTML = sorted.map((b, idx) => {
+      const rClass = b.rating >= 4.5 ? 'high' : b.rating >= 4.0 ? 'mid' : 'low';
+      const mapsBtn = b.url
+        ? `<a class="btn-sm maps" href="${b.url}" target="_blank" rel="noopener">⬡ haritada gör</a>`
+        : `<span class="btn-sm" style="opacity:0.3;cursor:default;">⬡ link yok</span>`;
+
+      return `
+        <div class="biz-card" style="animation-delay:${Math.min(idx * 0.03, 0.5)}s">
+          <span class="biz-rank">${idx + 1}</span>
+          <div class="biz-main">
+            <div class="biz-name" title="${escHtml(b.name)}">${escHtml(b.name)}</div>
+            <div class="biz-actions">${mapsBtn}</div>
+          </div>
+          <div class="biz-meta">
+            <span class="rating ${rClass}">★ ${b.rating.toFixed(1)}</span>
+            <span class="reviews">${b.reviews.toLocaleString('tr-TR')} yorum</span>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function toggleSort() {
+    smartSort = !smartSort;
+    const toggle = document.getElementById('sortToggle');
+    const label = document.getElementById('sortLabel');
+    toggle.classList.toggle('on', smartSort);
+    label.textContent = smartSort ? 'akıllı sıralama' : 'puana göre';
+    renderList();
+  }
+
+  function downloadExcel() {
+    if (!allBusinesses.length) return;
+    const sorted = getSorted();
+
+    const ws_data = [
+      ['#', 'İşletme Adı', 'Puan', 'Yorum Sayısı', 'Google Maps Linki'],
+      ...sorted.map((b, i) => [i + 1, b.name, b.rating, b.reviews, b.url || ''])
+    ];
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(ws_data);
+    ws['!cols'] = [{ wch: 4 }, { wch: 48 }, { wch: 8 }, { wch: 14 }, { wch: 50 }];
+    XLSX.utils.book_append_sheet(wb, ws, 'İşletmeler');
+    XLSX.writeFile(wb, 'isletmeler.xlsx');
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('errorMsg');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+
+  function hideError() {
+    document.getElementById('errorMsg').style.display = 'none';
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+</script>
+</body>
+</html>
