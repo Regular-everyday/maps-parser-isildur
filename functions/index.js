@@ -25,6 +25,12 @@ const callableOptions = {
   timeoutSeconds: 30,
   memory: '256MiB',
   maxInstances: 10,
+  invoker: 'public',
+  cors: [
+    'https://maps-parser-isildur.web.app',
+    'https://maps-parser-isildur.firebaseapp.com',
+    /^http:\/\/localhost(:\\d+)?$/
+  ],
   secrets: [mapsApiKey]
 };
 
