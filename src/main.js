@@ -37,6 +37,7 @@ const state = {
   smartSort: false,
   history: [],
   historyOpen: false,
+  profileError: false,
   unsubscribeProfile: null,
   unsubscribeHistory: null
 };
@@ -89,7 +90,7 @@ document.querySelector('#app').innerHTML = `
       <div class="location-fallback card hidden" id="locationFallback">
         <div class="warning-icon">!</div>
         <div class="fallback-copy">
-          <h2>Konum izni verilmediği için</h2>
+          <h2 id="locationFallbackTitle">Konum izni verilmediği için</h2>
           <p>Arama bölgesini il ve ilçe olarak seçmeniz gerekiyor.</p>
         </div>
       </div>
@@ -201,7 +202,11 @@ function selectedCost() {
 
 function updateCost() {
   const cost = selectedCost();
-  $('#costNote').textContent = `Bu arama ${cost} kredi kullanır`;
+  if (!state.profile) {
+    $('#costNote').textContent = state.profileError ? 'Kredi bilgisi yüklenemedi · sayfayı yenileyin' : 'Kredi bilgisi yükleniyor…';
+  } else {
+    $('#costNote').textContent = `Bu arama ${cost} kredi kullanır`;
+  }
   $('#allCityCost').textContent = state.city ? `${state.city} genelinde ${cost} kredi` : 'Seçilen şehre göre 2–5 kredi';
   elements.searchButton.disabled = !state.profile || state.profile.creditsRemaining < cost;
 }
@@ -335,12 +340,16 @@ async function requestDeviceLocation() {
     } catch {
       showLocationFallback('Konumunuz adres olarak çözümlenemedi.');
     }
-  }, () => showLocationFallback('Konum izni verilmedi.'), { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
+  }, (error) => showLocationFallback(
+    error.code === error.PERMISSION_DENIED ? 'Konum izni verilmedi.' : 'Cihaz konumu alınamadı.',
+    error.code === error.PERMISSION_DENIED
+  ), { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
 }
 
-function showLocationFallback(detail) {
+function showLocationFallback(detail, permissionDenied = false) {
   elements.locationStatus.classList.add('hidden');
   elements.locationFallback.classList.remove('hidden');
+  $('#locationFallbackTitle').textContent = permissionDenied ? 'Konum izni verilmediği için' : 'Konum otomatik belirlenemedi';
   elements.locationFallback.querySelector('p').textContent = `${detail} Arama bölgesini il ve ilçe olarak seçin.`;
 }
 
@@ -382,8 +391,8 @@ function renderHistory() {
 function subscribeToAccount(user) {
   state.unsubscribeProfile?.(); state.unsubscribeHistory?.();
   state.unsubscribeProfile = onSnapshot(doc(db, 'users', user.uid), (snapshot) => {
-    state.profile = snapshot.exists() ? snapshot.data() : null; renderProfile();
-  });
+    state.profileError = false; state.profile = snapshot.exists() ? snapshot.data() : null; renderProfile();
+  }, () => { state.profileError = true; state.profile = null; updateCost(); });
   const historyQuery = query(collection(db, 'users', user.uid, 'searches'), orderBy('createdAt', 'desc'), limit(30));
   state.unsubscribeHistory = onSnapshot(historyQuery, (snapshot) => {
     state.history = snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })).filter((item) => item.status === 'completed');
@@ -439,6 +448,7 @@ elements.allCity.onchange = () => {
 elements.searchForm.onsubmit = async (event) => {
   event.preventDefault();
   if (!state.city || (!state.allCity && !state.district)) { showToast('Lütfen il ve ilçe seçin.', 'error'); return; }
+  if (!state.profile) { showToast('Kredi bilgisi henüz yüklenmedi. Sayfayı yenileyip tekrar deneyin.', 'error'); return; }
   const mentioned = findMentionedLocation(elements.searchInput.value);
   let useTypedLocation = false;
   if (locationConflicts(mentioned)) {
@@ -481,6 +491,9 @@ onAuthStateChanged(auth, async (user) => {
   }
   elements.authGate.classList.add('hidden'); elements.searchShell.classList.remove('hidden'); elements.authButton.classList.add('hidden');
   elements.profileButton.classList.remove('hidden'); elements.historyButton.classList.remove('hidden'); renderProfile();
-  try { await ensureProfile(); subscribeToAccount(user); } catch { showToast('Profiliniz hazırlanamadı. Sayfayı yenileyin.', 'error'); }
+  state.profileError = false; updateCost();
+  try { await ensureProfile(); subscribeToAccount(user); } catch {
+    state.profileError = true; updateCost(); showToast('Profil ve kredi bilgisi hazırlanamadı. Sayfayı yenileyin.', 'error');
+  }
   if (!sessionStorage.getItem('location-requested')) { sessionStorage.setItem('location-requested', '1'); requestDeviceLocation(); }
 });

@@ -111,6 +111,11 @@ exports.resolveLocation = onCall(callableOptions, async (request) => {
   const response = await fetch(url);
   const payload = await response.json();
   if (!response.ok || payload.status !== 'OK' || !payload.results?.length) {
+    console.warn('Geocoding API konumu çözemedi', {
+      httpStatus: response.status,
+      apiStatus: payload.status,
+      errorMessage: safeString(payload.error_message, 300)
+    });
     throw new HttpsError('not-found', 'Konum adresi belirlenemedi.');
   }
 
