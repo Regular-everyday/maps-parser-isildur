@@ -111,12 +111,13 @@ exports.resolveLocation = onCall(callableOptions, async (request) => {
   const response = await fetch(url);
   const payload = await response.json();
   if (!response.ok || payload.status !== 'OK' || !payload.results?.length) {
+    const geocodingReason = safeString(payload.error_message || payload.status || `HTTP ${response.status}`, 220);
     console.warn('Geocoding API konumu çözemedi', {
       httpStatus: response.status,
       apiStatus: payload.status,
-      errorMessage: safeString(payload.error_message, 300)
+      errorMessage: geocodingReason
     });
-    throw new HttpsError('not-found', 'Konum adresi belirlenemedi.');
+    throw new HttpsError('failed-precondition', `Konum adresi belirlenemedi: ${geocodingReason}`);
   }
 
   const components = payload.results.flatMap((result) => result.address_components ?? []);
@@ -298,7 +299,8 @@ exports.searchPlaces = onCall(callableOptions, async (request) => {
         completedAt: FieldValue.serverTimestamp()
       });
     });
-    console.error('Places araması başarısız:', error);
-    throw new HttpsError('internal', 'Mekân araması tamamlanamadı; krediniz iade edildi.');
+    const reason = safeString(error.message, 240) || 'Bilinmeyen Google Places API hatası';
+    console.error('Places araması başarısız', { reason });
+    throw new HttpsError('failed-precondition', `Google Places API isteği reddedildi: ${reason}. Krediniz iade edildi.`);
   }
 });

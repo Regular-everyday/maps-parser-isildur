@@ -337,8 +337,8 @@ async function requestDeviceLocation() {
       $('#changeLocation').onclick = () => { elements.locationFallback.classList.remove('hidden'); elements.city.focus(); };
       if (!state.district) elements.locationFallback.classList.remove('hidden');
       updateCost();
-    } catch {
-      showLocationFallback('Konumunuz adres olarak çözümlenemedi.');
+    } catch (error) {
+      showLocationFallback(error.message || 'Konumunuz adres olarak çözümlenemedi.');
     }
   }, (error) => showLocationFallback(
     error.code === error.PERMISSION_DENIED ? 'Konum izni verilmedi.' : 'Cihaz konumu alınamadı.',
